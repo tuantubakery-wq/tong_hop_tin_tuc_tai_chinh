@@ -34,13 +34,9 @@ NHATOT_HCM = "https://www.nhatot.com/mua-ban-bat-dong-san-tp-ho-chi-minh"
 
 # Optional packages. Keep the app usable when one provider is temporarily unavailable.
 try:
-    from vnstock import Retail
+    from vnstock import Retail, Market
 except Exception:
     Retail = None
-
-try:
-    from vnstock.ui import Market
-except Exception:
     Market = None
 
 try:
@@ -209,11 +205,21 @@ def _market_ohlcv(kind: str, symbols: List[str], days: int = 730) -> pd.DataFram
     for sym in symbols:
         try:
             mkt = Market()
-            obj = getattr(mkt, kind)(sym)
+            domain = getattr(mkt, kind)
             try:
-                df = obj.ohlcv(start=start.isoformat(), end=end.isoformat(), interval="1D")
+                df = domain.ohlcv(
+                    symbol=sym,
+                    start=start.isoformat(),
+                    end=end.isoformat(),
+                    interval="1D",
+                )
             except TypeError:
-                df = obj.ohlcv(length=days, interval="1D")
+                # Compatibility fallback for provider versions that do not accept interval.
+                df = domain.ohlcv(
+                    symbol=sym,
+                    start=start.isoformat(),
+                    end=end.isoformat(),
+                )
             if df is not None and not df.empty:
                 out = flatten_columns(df)
                 out["symbol_used"] = sym
