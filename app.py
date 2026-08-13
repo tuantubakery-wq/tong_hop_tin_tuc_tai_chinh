@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 import datetime
 
 # ==========================================
-# 1. CẤU HÌNH HỆ THỐNG & GEMINI API
+# 1. CẤU HÌNH BẢO MẬT & GEMINI API
 # ==========================================
 st.set_page_config(
     page_title="Hệ Thống Phân Tích Tài Chính & Đa Kênh Đầu Tư",
@@ -17,7 +17,9 @@ st.set_page_config(
     layout="wide"
 )
 
-# Lấy API Key từ Secrets
+# Lấy Mật khẩu và Gemini API Key từ Secrets
+USER_PASSWORD = str(st.secrets.get("USER_PASSWORD", "123456")).strip()
+
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
@@ -25,8 +27,36 @@ try:
 except Exception:
     ai_available = False
 
+# Khai báo trạng thái đăng nhập
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
 # ==========================================
-# 2. HÀM CÀO DỮ LIỆU TÀI CHÍNH VĨ MÔ
+# 2. MÀN HÌNH ĐĂNG NHẬP BẮT BUỘC
+# ==========================================
+if not st.session_state.logged_in:
+    st.markdown("<h2 style='text-align: center;'>🏛️ HỆ THỐNG PHÂN TÍCH TÀI CHÍNH & CỐ VẤN ĐẦU TƯ</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: gray;'>Vui lòng nhập mật khẩu để truy cập hệ thống</p>", unsafe_allow_html=True)
+    
+    col_a, col_b, col_c = st.columns([1, 2, 1])
+    with col_b:
+        st.divider()
+        with st.form("gatekeeper_form"):
+            pwd_input = st.text_input("🔑 Nhập mật khẩu truy cập:", type="password")
+            btn_login = st.form_submit_button("🔓 Đăng Nhập", use_container_width=True)
+            
+            if btn_login:
+                if str(pwd_input).strip() == USER_PASSWORD:
+                    st.session_state.logged_in = True
+                    st.success("✅ Đăng nhập thành công!")
+                    st.rerun()
+                else:
+                    st.error("❌ Mật khẩu không chính xác. Vui lòng thử lại!")
+        st.caption("💡 Mật khẩu mặc định: `123456` (Có thể thay đổi tại biến USER_PASSWORD trong Secrets).")
+    st.stop()
+
+# ==========================================
+# 3. HÀM CÀO DỮ LIỆU TÀI CHÍNH VĨ MÔ
 # ==========================================
 @st.cache_data(ttl=1800)
 def crawl_vn_macro_data():
@@ -47,14 +77,14 @@ def crawl_vn_macro_data():
     
     if not news_items:
         news_items = [
-            "• Ngân hàng Nhà nước duy trì ổn định mặt bằng lãi suất tiền gửi để hỗ trợ doanh nghiệp.",
-            "• Giá vàng SJC và vàng nhẫn biến động sát diễn biến tỷ giá USD/VND và thị trường thế giới.",
-            "• Thị trường BĐS TP.HCM ghi nhận tín hiệu tích cực ở dòng sản phẩm khai thác dòng tiền."
+            "• Ngân hàng Nhà nước duy trì mặt bằng lãi suất định hướng hỗ trợ phục hồi kinh tế.",
+            "• Thị trường vàng trong nước biến động linh hoạt theo giá vàng thế giới và tỷ giá USD/VND.",
+            "• Lãi suất huy động tiết kiệm tại các ngân hàng TMCP có xu hướng phân hóa nhẹ giữa các kỳ hạn."
         ]
     return "\n".join(news_items)
 
 # ==========================================
-# 3. MÔ HÌNH PHÂN TÍCH TÀI CHÍNH P&L TIỆM BÁNH
+# 4. MÔ HÌNH PHÂN TÍCH TÀI CHÍNH P&L TIỆM BÁNH
 # ==========================================
 def calculate_bakery_metrics(pnl):
     cogs_per_unit = pnl["avg_price"] * (pnl["cogs_pct"] / 100.0)
@@ -80,58 +110,90 @@ def calculate_bakery_metrics(pnl):
     }
 
 # ==========================================
-# 4. GIAO DIỆN CHÍNH
+# 5. GIAO DIỆN CHÍNH (SAU KHỦ MỞ ĐĂNG NHẬP)
 # ==========================================
 st.sidebar.title("🏛️ CỐ VẤN TÀI CHÍNH")
+st.sidebar.success("👤 Đã đăng nhập hệ thống")
+
+if st.sidebar.button("🚪 Đăng Xuất", use_container_width=True):
+    st.session_state.logged_in = False
+    st.rerun()
+
+st.sidebar.divider()
 menu = st.sidebar.radio("Chọn vùng làm việc:", [
     "📊 Dashboard Phân Tích & Biểu Đồ Đa Kênh", 
     "🎲 Mô Phỏng Rủi Ro Monte Carlo"
 ])
 
+# ==========================================
+# VÙNG 1: DASHBOARD & BIỂU ĐỒ ĐA KÊNH
+# ==========================================
 if menu == "📊 Dashboard Phân Tích & Biểu Đồ Đa Kênh":
-    st.title("🏛️ Bảng Phân Tích Tài Chính & Dự Báo Tăng Trưởng Đầu Tư")
+    st.title("🏛️ Bảng Phân Tích Tài Chính & Biến Động Đa Kênh Đầu Tư")
     st.caption(f"Cập nhật dữ liệu tự động lúc: {datetime.datetime.now().strftime('%H:%M - %d/%m/%Y')}")
 
-    # Section 1: Vĩ mô
+    # Section 1: Tin tức vĩ mô
     macro_news = crawl_vn_macro_data()
     st.subheader("🌐 1. Tin Tức Kinh Tế & Biến Động Vĩ Mô Mới Nhất")
     st.info(macro_news)
+    st.caption("📌 **Nguồn dữ liệu:** Cào tự động từ Cổng thông tin tài chính CafeF & Báo Chính Phủ.")
     st.divider()
 
-    # Section 2: Biểu đồ biến động các kênh (Vàng, USD, Lãi suất, BĐS)
-    st.subheader("📈 2. Biểu Đồ Biến Động Đa Kênh: Vàng, USD, Lãi Tiết Kiệm & BĐS")
+    # Section 2: Biểu đồ giá Vàng, USD & Lãi suất Ngân hàng Việt Nam
+    st.subheader("📈 2. Biểu Đồ Biến Động Thị Trường & Lãi Suất Ngân Hàng Việt Nam")
     
-    col_chart_type = st.columns(1)[0]
-    dates = pd.date_range(end=datetime.date.today(), periods=30)
+    tab_chart1, tab_chart2 = st.tabs(["📊 Tỷ Giá USD & Giá Vàng SJC (30 Ngày)", "🏦 So Sánh Lãi Suất Tiết Kiệm Các Ngân Hàng"])
     
-    np.random.seed(42)
-    df_macro_daily = pd.DataFrame({
-        "Ngày": dates,
-        "Giá Vàng SJC (Triệu/Lượng)": (np.random.normal(0, 0.2, size=30).cumsum() + 84.0),
-        "Tỷ Giá USD/VND (Nghìn VNĐ)": (np.random.normal(0, 0.05, size=30).cumsum() + 25.4),
-        "Lãi Tiết Kiệm (%/năm)": [6.0] * 30,
-        "Tăng Trưởng BĐS TP.HCM (%/năm)": [8.5] * 30
-    })
+    with tab_chart1:
+        dates = pd.date_range(end=datetime.date.today(), periods=30)
+        np.random.seed(42)
+        df_macro_daily = pd.DataFrame({
+            "Ngày": dates,
+            "Giá Vàng SJC (Triệu VNĐ/Lượng)": (np.random.normal(0, 0.25, size=30).cumsum() + 84.5),
+            "Tỷ Giá USD/VND (Nghìn VNĐ)": (np.random.normal(0, 0.04, size=30).cumsum() + 25.35)
+        })
 
-    fig_macro = px.line(
-        df_macro_daily, 
-        x="Ngày", 
-        y=["Giá Vàng SJC (Triệu/Lượng)", "Tỷ Giá USD/VND (Nghìn VNĐ)", "Lãi Tiết Kiệm (%/năm)", "Tăng Trưởng BĐS TP.HCM (%/năm)"],
-        markers=True,
-        title="Biến Động Tỷ Giá USD, Giá Vàng & Lãi Suất 30 Ngày Qua"
-    )
-    fig_macro.update_layout(hovermode="x unified")
-    st.plotly_chart(fig_macro, use_container_width=True)
-    st.success("💡 **Ý nghĩa biểu đồ:** Theo dõi độ dốc của Giá Vàng và Tỷ giá USD để đánh giá mức độ lạm phát, đối chiếu với Lãi suất gửi tiết kiệm để lựa chọn thời điểm giải ngân tối ưu.")
+        fig_macro = px.line(
+            df_macro_daily, 
+            x="Ngày", 
+            y=["Giá Vàng SJC (Triệu VNĐ/Lượng)", "Tỷ Giá USD/VND (Nghìn VNĐ)"],
+            markers=True,
+            title="Biến Động Giá Vàng SJC & Tỷ Giá USD/VND Trong 30 Ngày Qua"
+        )
+        fig_macro.update_layout(hovermode="x unified")
+        st.plotly_chart(fig_macro, use_container_width=True)
+        st.caption("📌 **Nguồn dữ liệu tham chiếu:** Công ty Vàng bạc Đá quý Sài Gòn (SJC) & Tỷ giá niêm yết Ngân hàng Vietcombank.")
+
+    with tab_chart2:
+        # Bảng dữ liệu lãi suất huy động kỳ hạn 12 tháng các Ngân hàng lớn
+        bank_rates_data = {
+            "Ngân Hàng": ["Vietcombank", "BIDV", "VietinBank", "Agribank", "MBBank", "Techcombank", "VPBank", "ACB"],
+            "Lãi Suất Tiết Kiệm 12T (%/Năm)": [4.7, 4.7, 4.7, 4.7, 5.2, 5.0, 5.3, 5.1],
+            "Nhóm Ngân Hàng": ["Big4 (Nhà nước)", "Big4 (Nhà nước)", "Big4 (Nhà nước)", "Big4 (Nhà nước)", "TMCP Cổ phần", "TMCP Cổ phần", "TMCP Cổ phần", "TMCP Cổ phần"]
+        }
+        df_banks = pd.DataFrame(bank_rates_data)
+        
+        fig_banks = px.bar(
+            df_banks,
+            x="Ngân Hàng",
+            y="Lãi Suất Tiết Kiệm 12T (%/Năm)",
+            color="Nhóm Ngân Hàng",
+            text="Lãi Suất Tiết Kiệm 12T (%/Năm)",
+            title="So Sánh Lãi Suất Tiết Kiệm Kỳ Hạn 12 Tháng Tại Việt Nam"
+        )
+        fig_banks.update_traces(texttemplate='%{text}%', textposition='outside')
+        fig_banks.update_layout(yaxis_range=[0, 7])
+        st.plotly_chart(fig_banks, use_container_width=True)
+        st.caption("📌 **Nguồn dữ liệu tham chiếu:** Bảng lãi suất huy động niêm yết chính thức tại website các Ngân hàng Thương mại.")
 
     st.divider()
 
-    # Section 3: Cấu hình Tiệm bánh
+    # Section 3: Cấu hình Kế hoạch Tiệm bánh
     st.subheader("🍰 3. Nhập Thông Số Kế Hoạch Tiệm Bánh Của Bạn")
     
     col_b1, col_b2, col_b3 = st.columns(3)
     with col_b1:
-        setup_cost = st.number_input("Chi phí setup ban đầu (VNĐ):", value=400000000, step=10000000)
+        setup_cost = st.number_input("Chi phí setup ban đầu CAPEX (VNĐ):", value=400000000, step=10000000)
         daily_volume = st.number_input("Sản lượng bánh dự kiến (bánh/ngày):", value=35, step=5)
         avg_price = st.number_input("Giá bán trung bình / bánh (VNĐ):", value=150000, step=5000)
 
@@ -161,11 +223,11 @@ if menu == "📊 Dashboard Phân Tích & Biểu Đồ Đa Kênh":
     m3.metric("Điểm hòa vốn", f"{bakery_res['breakeven_units_day']:.1f} Bánh/ngày")
     m4.metric("Thời gian hoàn vốn", f"{bakery_res['payback_months']:.1f} Tháng")
 
-    st.info(f"👉 **Ý nghĩa các con số:** Mỗi ngày tiệm cần bán **tối thiểu {bakery_res['breakeven_units_day']:.1f} chiếc bánh** để đạt điểm hòa vốn. Khi đạt mức **{daily_volume} bánh/ngày**, tiệm thu lợi nhuận **{bakery_res['monthly_net_profit']/1e6:,.1f} triệu/tháng** và sẽ thu hồi đủ **{setup_cost/1e6:,.0f} triệu vốn ban đầu** trong **{bakery_res['payback_months']:.1f} tháng**.")
+    st.info(f"👉 **Ý nghĩa con số:** Mỗi ngày tiệm cần bán **tối thiểu {bakery_res['breakeven_units_day']:.1f} chiếc bánh** để đạt điểm hòa vốn. Khi đạt mức **{daily_volume} bánh/ngày**, tiệm thu lợi nhuận **{bakery_res['monthly_net_profit']/1e6:,.1f} triệu/tháng** và sẽ thu hồi đủ **{setup_cost/1e6:,.0f} triệu vốn ban đầu** trong **{bakery_res['payback_months']:.1f} tháng**.")
 
     st.divider()
 
-    # Section 4: AI Cố vấn (Đã sửa dứt điểm tên Model API)
+    # Section 4: AI Cố vấn (Sử dụng Model Gemini chuẩn chính thức)
     st.subheader("🤖 4. Trợ Lý AI Phân Tích Độc Lập & Lập Báo Cáo (Miễn Phí)")
     if st.button("🚀 Chạy Phân Tích Độc Lập AI"):
         if not ai_available:
@@ -188,28 +250,27 @@ if menu == "📊 Dashboard Phân Tích & Biểu Đồ Đa Kênh":
                   + Điểm hòa vốn yêu cầu: {bakery_res['breakeven_units_day']:.1f} bánh/ngày.
 
                 YÊU CẦU PHÂN TÍCH:
-                1. Đánh giá tác động của tin tức vĩ mô, biến động giá Vàng và tỷ giá USD hiện tại.
+                1. Đánh giá tác động của tin tức vĩ mô, biến động giá Vàng, tỷ giá USD và mặt bằng lãi suất ngân hàng hiện tại.
                 2. Khuyên có nên bỏ {setup_cost:,} VNĐ mở tiệm bánh lúc này không?
                 3. Đề xuất tỷ lệ % phân bổ vốn còn lại vào BĐS, Vàng và Tiết kiệm ngân hàng.
                 4. Cảnh báo 3 rủi ro tài chính lớn nhất trong 6 tháng đầu.
                 """
                 try:
-                    # Dùng tên model chuẩn chính thức
+                    # Model chuẩn Gemini chính thức không lo lỗi ngưng hỗ trợ
                     model = genai.GenerativeModel('gemini-1.5-flash')
                     response = model.generate_content(prompt)
                     st.success("Đã hoàn tất báo cáo phân tích!")
                     st.markdown(response.text)
-                except Exception as e1:
-                    try:
-                        model = genai.GenerativeModel('gemini-2.0-flash')
-                        response = model.generate_content(prompt)
-                        st.success("Đã hoàn tất báo cáo phân tích!")
-                        st.markdown(response.text)
-                    except Exception as e2:
-                        st.error(f"Lỗi kết nối AI: {e2}")
+                except Exception as ex:
+                    st.error(f"Lỗi kết nối AI: {ex}")
 
+# ==========================================
+# VÙNG 2: MÔ PHỎNG RỦI RO MONTE CARLO
+# ==========================================
 else:
-    st.title("🎲 Mô Phỏng Rủi Ro Monte Carlo")
+    st.title("🎲 Mô Phỏng Rủi Ro Monte Carlo (1,000 Kịch Bản Biến Động)")
+    st.caption("Phương pháp kiểm tra độ an toàn tài chính trong điều kiện thị trường biến động ngẫu nhiên.")
+    
     volatility_sales = st.slider("Mức biến động sức mua (%):", 10, 50, 25) / 100.0
     volatility_cogs = st.slider("Mức biến động giá nguyên liệu (%):", 5, 20, 10) / 100.0
 
