@@ -2,20 +2,26 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
 import google.generativeai as genai
 import requests
 from bs4 import BeautifulSoup
 import datetime
 
 # ==========================================
-# 1. CẤU HÌNH HỆ THỐNG & TÀI KHOẢN ĐĂNG NHẬP
+# 1. CẤU HÌNH HỆ THỐNG & KHỞI TẠO SESSION
 # ==========================================
 st.set_page_config(
     page_title="Hệ Thống Phân Tích Tài Chính & Cố Vấn Đầu Tư",
     page_icon="🏛️",
     layout="wide"
 )
+
+# Khởi tạo biến lưu trạng thái đăng nhập
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+# Lấy Mật khẩu từ Secrets (Mặc định '123456' nếu chưa cấu hình Secrets)
+TARGET_PASSWORD = str(st.secrets.get("USER_PASSWORD", "123456")).strip()
 
 # Lấy Gemini API Key từ Secrets
 try:
@@ -25,44 +31,34 @@ try:
 except Exception:
     ai_available = False
 
-# Lấy mật khẩu đăng nhập từ Secrets (mặc định nếu chưa gán là '123456')
-USER_PASSWORD = st.secrets.get("USER_PASSWORD", "123456")
-
-# Khởi tạo trạng thái đăng nhập trong Session State
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
 # ==========================================
-# 2. MÀN HÌNH ĐĂNG NHẬP BẮT BUỘC (LOGIN FORM)
+# 2. KIẾN TRÚC ĐĂNG NHẬP CHUẨN STREAMLIT
 # ==========================================
-def login_screen():
+if not st.session_state.authenticated:
     st.markdown("<h2 style='text-align: center;'>🏛️ HỆ THỐNG PHÂN TÍCH TÀI CHÍNH & CỐ VẤN ĐẦU TƯ</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: gray;'>Vui lòng đăng nhập để truy cập vào Bảng điều khiển & Biểu đồ phân tích</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: gray;'>Vui lòng đăng nhập để truy cập Bảng điều khiển & Biểu đồ</p>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.divider()
-        with st.form("login_form"):
-            password_input = st.text_input("🔑 Nhập mật khẩu truy cập hệ thống:", type="password")
-            submit_button = st.form_submit_button("🔓 Đăng Nhập", use_container_width=True)
+        # Form đăng nhập với key cố định
+        with st.form("login_form_gate"):
+            input_pass = st.text_input("🔑 Nhập mật khẩu truy cập hệ thống:", type="password")
+            submit_btn = st.form_submit_button("🔓 Đăng Nhập", use_container_width=True)
             
-            if submit_button:
-                # Ép kiểu dữ liệu về chuỗi và loại bỏ khoảng trắng thừa ở 2 đầu
-                input_str = str(password_input).strip()
-                target_str = str(USER_PASSWORD).strip()
-                
-                if input_str == target_str:
+            if submit_btn:
+                # Ép kiểu chuỗi và xóa khoảng trắng thừa
+                clean_input = str(input_pass).strip()
+                if clean_input == TARGET_PASSWORD:
                     st.session_state.authenticated = True
                     st.success("✅ Đăng nhập thành công!")
                     st.rerun()
                 else:
                     st.error("❌ Mật khẩu không chính xác! Vui lòng thử lại.")
         
-        st.caption("💡 Mật khẩu mặc định: `123456` (Có thể đổi trong mục Secrets trên Streamlit Cloud).")
-
-# Khóa toàn bộ ứng dụng nếu chưa đăng nhập
-if not st.session_state.authenticated:
-    login_screen()
+        st.caption("💡 Mật khẩu mặc định: `123456` (Cấu hình biến `USER_PASSWORD` trong Secrets).")
+    
+    # Dừng không cho chạy tiếp các phần bên dưới khi chưa đăng nhập thành công
     st.stop()
 
 # ==========================================
@@ -122,7 +118,7 @@ def calculate_bakery_metrics(pnl):
     }
 
 # ==========================================
-# 5. GIAO DIỆN CHÍNH (SAU KHỦ MỞ ĐĂNG NHẬP)
+# 5. GIAO DIỆN CHÍNH (ĐÃ ĐĂNG NHẬP THÀNH CÔNG)
 # ==========================================
 st.sidebar.title("🏛️ CỐ VẤN TÀI CHÍNH")
 st.sidebar.success("👤 Đã đăng nhập hệ thống")
@@ -132,7 +128,7 @@ if st.sidebar.button("🚪 Đăng Xuất", use_container_width=True):
     st.rerun()
 
 st.sidebar.divider()
-menu = st.sidebar.radio("Chọn vùng làm việc:", [
+menu = st.sidebar.radio("Chọn không gian làm việc:", [
     "📊 Dashboard Phân Tích & Biểu Đồ", 
     "🎲 Mô Phỏng Rủi Ro Monte Carlo"
 ])
@@ -311,4 +307,4 @@ else:
         fig_hist.add_vline(x=0, line_dash="dash", line_color="red", annotation_text="Đường Hòa Vốn (0 VNĐ)")
         st.plotly_chart(fig_hist, use_container_width=True)
 
-        st.warning(f"💡 **Cách đọc biểu đồ Monte Carlo:** Đường nét đứt màu đỏ là Ranh giới Hòa vốn. Toàn bộ phần hình cột màu xanh nằm bên phải đường đỏ đại diện cho các kịch bản tiệm sinh lời. Tỷ lệ lỗ **{loss_prob:.1f}%** cho thấy mức độ an toàn tài chính cao.")
+        st.warning(f"💡 **Cách đọc biểu đồ Monte Carlo:** Đường nét đứt màu đỏ là Ranh giới Hòa vốn. Tỷ lệ lỗ **{loss_prob:.1f}%** cho thấy mức độ an toàn tài chính cao.")
