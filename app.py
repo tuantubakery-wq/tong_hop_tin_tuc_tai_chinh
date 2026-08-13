@@ -25,15 +25,15 @@ try:
 except Exception:
     ai_available = False
 
-# Mật khẩu Đăng nhập Hệ thống (Lấy từ Secrets hoặc Mặc định)
+# Lấy mật khẩu đăng nhập từ Secrets (mặc định nếu chưa gán là '123456')
 USER_PASSWORD = st.secrets.get("USER_PASSWORD", "123456")
 
-# Khởi tạo trạng thái đăng nhập
+# Khởi tạo trạng thái đăng nhập trong Session State
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 # ==========================================
-# 2. MÀN HÌNH ĐĂNG NHẬP BẮT BUỘC (LOGIN GATE)
+# 2. MÀN HÌNH ĐĂNG NHẬP BẮT BUỘC (LOGIN FORM)
 # ==========================================
 def login_screen():
     st.markdown("<h2 style='text-align: center;'>🏛️ HỆ THỐNG PHÂN TÍCH TÀI CHÍNH & CỐ VẤN ĐẦU TƯ</h2>", unsafe_allow_html=True)
@@ -42,17 +42,25 @@ def login_screen():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.divider()
-        password_input = st.text_input("🔑 Nhập mật khẩu truy cập hệ thống:", type="password")
-        if st.button("🔓 Đăng Nhập", use_container_width=True):
-            if password_input == USER_PASSWORD:
-                st.session_state.authenticated = True
-                st.success("✅ Đăng nhập thành công!")
-                st.rerun()
-            else:
-                st.error("❌ Mật khẩu không chính xác! Vui lòng thử lại.")
-        st.caption("💡 Mặc định mật khẩu thử nghiệm: `123456` (Có thể đổi trong Secrets).")
+        with st.form("login_form"):
+            password_input = st.text_input("🔑 Nhập mật khẩu truy cập hệ thống:", type="password")
+            submit_button = st.form_submit_button("🔓 Đăng Nhập", use_container_width=True)
+            
+            if submit_button:
+                # Ép kiểu dữ liệu về chuỗi và loại bỏ khoảng trắng thừa ở 2 đầu
+                input_str = str(password_input).strip()
+                target_str = str(USER_PASSWORD).strip()
+                
+                if input_str == target_str:
+                    st.session_state.authenticated = True
+                    st.success("✅ Đăng nhập thành công!")
+                    st.rerun()
+                else:
+                    st.error("❌ Mật khẩu không chính xác! Vui lòng thử lại.")
+        
+        st.caption("💡 Mật khẩu mặc định: `123456` (Có thể đổi trong mục Secrets trên Streamlit Cloud).")
 
-# Nếu chưa đăng nhập, hiển thị màn hình đăng nhập và DỪNG TOÀN BỘ CHƯƠNG TRÌNH
+# Khóa toàn bộ ứng dụng nếu chưa đăng nhập
 if not st.session_state.authenticated:
     login_screen()
     st.stop()
@@ -80,8 +88,8 @@ def crawl_vn_macro_data():
     if not news_items:
         news_items = [
             "• Ngân hàng Nhà nước duy trì mặt bằng lãi suất ổn định hỗ trợ sản xuất kinh doanh.",
-            "• Phân khúc BĐS nhà ở thực và cho thuê tại TP.HCM duy trì dòng tiền tốt.",
-            "• Giá vàng biến động nhịp nhàng theo diễn biến tỷ giá USD/VND và thế giới."
+            "• Phân khúc BĐS nhà ở thực và cho thuê tại TP.HCM duy trì dòng tiền ổn định.",
+            "• Giá vàng biến động bám sát tỷ giá USD/VND và diễn biến thị trường quốc tế."
         ]
     return "\n".join(news_items)
 
@@ -114,18 +122,17 @@ def calculate_bakery_metrics(pnl):
     }
 
 # ==========================================
-# 5. GIAO DIỆN CHÍNH (ĐÃ ĐĂNG NHẬP THÀNH CÔNG)
+# 5. GIAO DIỆN CHÍNH (SAU KHỦ MỞ ĐĂNG NHẬP)
 # ==========================================
-# THANH ĐIỀU HƯỚNG BÊN TRÁI
 st.sidebar.title("🏛️ CỐ VẤN TÀI CHÍNH")
-st.sidebar.success("👤 Đã xác thực người dùng")
+st.sidebar.success("👤 Đã đăng nhập hệ thống")
 
 if st.sidebar.button("🚪 Đăng Xuất", use_container_width=True):
     st.session_state.authenticated = False
     st.rerun()
 
 st.sidebar.divider()
-menu = st.sidebar.radio("Chọn không gian làm việc:", [
+menu = st.sidebar.radio("Chọn vùng làm việc:", [
     "📊 Dashboard Phân Tích & Biểu Đồ", 
     "🎲 Mô Phỏng Rủi Ro Monte Carlo"
 ])
@@ -135,7 +142,7 @@ menu = st.sidebar.radio("Chọn không gian làm việc:", [
 # ==========================================
 if menu == "📊 Dashboard Phân Tích & Biểu Đồ":
     st.title("🏛️ Bảng Phân Tích Tài Chính & Dự Báo Tăng Trưởng Đầu Tư")
-    st.caption(f"Dữ liệu cập nhật tự động lúc: {datetime.datetime.now().strftime('%H:%M - %d/%m/%Y')}")
+    st.caption(f"Cập nhật dữ liệu vĩ mô tự động lúc: {datetime.datetime.now().strftime('%H:%M - %d/%m/%Y')}")
 
     # 1. CÀO TIN TỨC VĨ MÔ
     macro_news = crawl_vn_macro_data()
@@ -159,7 +166,7 @@ if menu == "📊 Dashboard Phân Tích & Biểu Đồ":
         fig_daily = px.line(df_daily, x="Ngày", y=["Giá Vàng SJC (Tr/Lượng)", "Chỉ Số VN-Index"], markers=True, title="Biến Động Thị Trường Thực Tế 30 Ngày Gần Đây")
         fig_daily.update_layout(hovermode="x unified")
         st.plotly_chart(fig_daily, use_container_width=True)
-        st.success("💡 **Giải thích xu hướng ngắn hạn:** Biểu đồ đường giúp bạn theo dõi biên độ dao động giá theo ngày. Nếu các đường có độ dốc tăng đều ➔ Thị trường đang ở chu kỳ tăng giá an toàn để tích sản.")
+        st.success("💡 **Giải thích xu hướng ngắn hạn:** Biểu đồ đường giúp theo dõi biên độ dao động giá theo ngày. Các đường có độ dốc tăng thể hiện chu kỳ tích sản thuận lợi.")
 
     else:
         months = [f"Tháng {i}" for i in range(1, 13)]
@@ -170,7 +177,7 @@ if menu == "📊 Dashboard Phân Tích & Biểu Đồ":
         })
         fig_monthly = px.bar(df_monthly, x="Tháng", y=["Doanh Thu (Triệu)", "Lợi Nhuận Ròng (Triệu)"], barmode="group", title="Dự Báo Doanh Thu & Lợi Nhuận Tiệm Bánh Theo 12 Tháng")
         st.plotly_chart(fig_monthly, use_container_width=True)
-        st.success("💡 **Giải thích xu hướng mùa vụ:** Cột màu xanh thể hiện Tổng doanh thu, cột đỏ/cam thể hiện Lợi nhuận ròng bỏ túi. Khoảng chênh lệch giữa 2 cột càng lớn chứng tỏ chi phí vận hành càng cao.")
+        st.success("💡 **Giải thích xu hướng mùa vụ:** Cột xanh thể hiện Tổng doanh thu, cột đỏ/cam thể hiện Lợi nhuận ròng bỏ túi. Chênh lệch giữa 2 cột cho thấy chi phí vận hành hàng tháng.")
 
     st.divider()
 
@@ -213,17 +220,17 @@ if menu == "📊 Dashboard Phân Tích & Biểu Đồ":
     m3.metric("Điểm hòa vốn", f"{bakery_res['breakeven_units_day']:.1f} Bánh/ngày")
     m4.metric("Thời gian hoàn vốn", f"{bakery_res['payback_months']:.1f} Tháng")
 
-    st.info(f"👉 **Ý nghĩa các con số:** Với mức chi phí trên, mỗi ngày tiệm bắt buộc phải bán **tối thiểu {bakery_res['breakeven_units_day']:.1f} chiếc bánh** để trả đủ tiền nhà và lương nhân viên (Điểm hòa vốn). Nếu bán đạt mục tiêu **{daily_volume} bánh/ngày**, bạn lời **{bakery_res['monthly_net_profit']/1e6:,.1f} triệu/tháng** và sẽ thu hồi đủ **{setup_cost/1e6:,.0f} triệu vốn ban đầu** sau **{bakery_res['payback_months']:.1f} tháng**.")
+    st.info(f"👉 **Ý nghĩa các con số:** Mỗi ngày tiệm cần bán **tối thiểu {bakery_res['breakeven_units_day']:.1f} chiếc bánh** để đạt điểm hòa vốn. Khi đạt mức **{daily_volume} bánh/ngày**, tiệm thu lợi nhuận **{bakery_res['monthly_net_profit']/1e6:,.1f} triệu/tháng** và sẽ thu hồi đủ **{setup_cost/1e6:,.0f} triệu vốn ban đầu** trong **{bakery_res['payback_months']:.1f} tháng**.")
 
     st.divider()
 
-    # 4. CỐ VẤN AI GEMINI (CHẠY ỔN ĐỊNH MIỄN PHÍ)
+    # 4. CỐ VẤN AI GEMINI MIỄN PHÍ
     st.subheader("🤖 4. Trợ Lý AI Phân Tích Độc Lập & Lập Báo Cáo (Miễn Phí)")
     if st.button("🚀 Chạy Phân Tích Độc Lập AI"):
         if not ai_available:
             st.error("Chưa cấu hình GEMINI_API_KEY trong Secrets!")
         else:
-            with st.spinner("AI đang đối chiếu dữ liệu vĩ mô và mô hình tài chính của bạn..."):
+            with st.spinner("AI đang phân tích tin tức vĩ mô và mô hình tài chính tiệm bánh..."):
                 prompt = f"""
                 Bạn là một Giám đốc Quản lý Quỹ & Cố vấn Đầu tư Chuyên nghiệp tại TP.HCM.
                 
@@ -304,4 +311,4 @@ else:
         fig_hist.add_vline(x=0, line_dash="dash", line_color="red", annotation_text="Đường Hòa Vốn (0 VNĐ)")
         st.plotly_chart(fig_hist, use_container_width=True)
 
-        st.warning(f"💡 **Cách đọc biểu đồ Monte Carlo:** Đường nét đứt màu đỏ là Ranh giới Hòa vốn. Toàn bộ phần hình cột màu xanh nằm bên phải đường đỏ là các kịch bản tiệm có lời. Với xác suất lỗ chỉ **{loss_prob:.1f}%**, phương án kinh doanh này có độ an toàn tài chính rất cao!")
+        st.warning(f"💡 **Cách đọc biểu đồ Monte Carlo:** Đường nét đứt màu đỏ là Ranh giới Hòa vốn. Toàn bộ phần hình cột màu xanh nằm bên phải đường đỏ đại diện cho các kịch bản tiệm sinh lời. Tỷ lệ lỗ **{loss_prob:.1f}%** cho thấy mức độ an toàn tài chính cao.")
