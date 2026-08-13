@@ -1,7 +1,10 @@
-streamlit
-google-generativeai
-plotly
-pandas
-numpy
-requests
-beautifulsoup4
+streamlit>=1.40
+pandas>=2.2
+numpy>=2.0
+plotly>=5.24
+requests>=2.32
+beautifulsoup4>=4.12
+lxml>=5.3
+openpyxl>=3.1
+google-genai>=1.0
+vnstock>=4.0
