@@ -1,9 +1,9 @@
-streamlit>=1.52,<2
-pandas>=2.3,<3
-numpy>=2.3,<3
+streamlit==1.61.1
+pandas==2.3.3
+numpy==2.2.6
 plotly>=6,<7
 requests>=2.32,<3
 beautifulsoup4>=4.13,<5
 lxml>=6,<7
-google-genai>=1.40
+google-genai>=1.40,<3
 vnstock==4.0.4
